@@ -71,15 +71,24 @@ runs:
       id: set-artifact-name
       shell: ${{ inputs.shell }}
       run: |
+        # Start with workflow name for namespacing
+        WORKFLOW_PREFIX="${{ github.workflow }}"
+        # Sanitize workflow name (replace spaces/special chars with hyphens)
+        WORKFLOW_PREFIX=$(echo "$WORKFLOW_PREFIX" | sed 's/[^a-zA-Z0-9-]/-/g' | tr -s '-')
+
         if [ -n "${{ inputs.artifact-name }}" ]; then
-          ARTIFACT_NAME="${{ inputs.artifact-name }}"
+          BASE_NAME="${{ inputs.artifact-name }}"
         elif [ -n "${{ inputs.directory }}" ]; then
           DIR_NAME=$(basename "${{ inputs.directory }}")
-          ARTIFACT_NAME="${DIR_NAME}-cache"
+          BASE_NAME="${DIR_NAME}-cache"
         else
           REPO_NAME=$(basename "${{ inputs.repo }}" .git)
-          ARTIFACT_NAME="${REPO_NAME}-cache"
+          BASE_NAME="${REPO_NAME}-cache"
         fi
+
+        # Prepend workflow name to create namespaced artifact name
+        ARTIFACT_NAME="${WORKFLOW_PREFIX}-${BASE_NAME}"
+
         echo "artifact-name=${ARTIFACT_NAME}" >> $GITHUB_OUTPUT
         echo "🏷️ Artifact name: ${ARTIFACT_NAME}"
 
