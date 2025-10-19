@@ -250,6 +250,7 @@ runs:
         path: ${{ steps.fix-windows-path.outputs.final-path }}
         retention-days: 30
         compression-level: 9
+        overwrite: true
 
     - name: Setup output file
       shell: ${{ inputs.shell }}
