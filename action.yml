@@ -208,6 +208,7 @@ runs:
     - name: Download existing artifact
       if: steps.cache-check.outputs.cache-hit != 'true' && steps.check-artifact.outputs.exists == 'true'
       id: download-artifact
+      continue-on-error: true
       uses: actions/download-artifact@v4
       with:
         name: ${{ steps.set-artifact-name.outputs.artifact-name }}-${{ steps.compute-checksum.outputs.checksum }}
