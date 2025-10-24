@@ -41,6 +41,10 @@ inputs:
     description: 'Command to run to verify the output works (e.g., "--version")'
     required: false
     default: ""
+  github-token:
+    description: "GitHub token for downloading artifacts from other workflow runs (requires actions:read permission)"
+    required: false
+    default: ${{ github.token }}
 
 outputs:
   cache-hit:
@@ -213,6 +217,7 @@ runs:
       with:
         name: ${{ steps.set-artifact-name.outputs.artifact-name }}-${{ steps.compute-checksum.outputs.checksum }}
         path: ${{ inputs.working-directory }}
+        github-token: ${{ inputs.github-token }}
 
     - name: Run custom command
       if: steps.cache-check.outputs.cache-hit != 'true' && (steps.check-artifact.outputs.exists != 'true' || steps.download-artifact.outcome == 'failure')
