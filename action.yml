@@ -45,6 +45,10 @@ inputs:
     description: "GitHub token for downloading artifacts from other workflow runs (requires actions:read permission)"
     required: false
     default: ${{ github.token }}
+  scope:
+    description: "Scope for artifact naming: 'run' (workflow run ID), 'workflow' (workflow name), 'job' (job ID), 'repo' (repository name), or 'none' (no suffix). Defaults to 'workflow' when github-token is not provided, 'none' when custom token is provided."
+    required: false
+    default: ""
 
 outputs:
   cache-hit:
@@ -75,6 +79,7 @@ runs:
       id: set-artifact-name
       shell: ${{ inputs.shell }}
       run: |
+        # Determine base name
         if [ -n "${{ inputs.artifact-name }}" ]; then
           BASE_NAME="${{ inputs.artifact-name }}"
         elif [ -n "${{ inputs.directory }}" ]; then
@@ -85,11 +90,58 @@ runs:
           BASE_NAME="${REPO_NAME}-cache"
         fi
 
-        # Append workflow job to create namespaced artifact name
-        ARTIFACT_NAME="${BASE_NAME}-${{ github.job }}"
+        # Function to sanitize artifact names (replace invalid chars with hyphens)
+        sanitize_name() {
+          echo "$1" | sed 's/[^a-zA-Z0-9._-]/-/g' | sed 's/--*/-/g' | sed 's/^-//;s/-$//'
+        }
+
+        # Determine scope (what suffix to add)
+        SCOPE="${{ inputs.scope }}"
+
+        # If scope not explicitly set, determine default based on github-token
+        if [ -z "$SCOPE" ]; then
+          if [ "${{ inputs.github-token }}" = "${{ github.token }}" ]; then
+            # Default token - can only access current run via download-artifact,
+            # but use workflow scope for artifact naming consistency across runs
+            SCOPE="workflow"
+          else
+            # Custom token provided - default to no suffix for maximum reusability
+            SCOPE="none"
+          fi
+        fi
+
+        # Apply suffix based on scope
+        case "$SCOPE" in
+          run)
+            ARTIFACT_NAME="${BASE_NAME}-${{ github.run_id }}"
+            echo "🏷️ Artifact name (run scoped): ${ARTIFACT_NAME}"
+            ;;
+          workflow)
+            WORKFLOW_SUFFIX=$(sanitize_name "${{ github.workflow }}")
+            ARTIFACT_NAME="${BASE_NAME}-${WORKFLOW_SUFFIX}"
+            echo "🏷️ Artifact name (workflow scoped): ${ARTIFACT_NAME}"
+            ;;
+          job)
+            JOB_SUFFIX=$(sanitize_name "${{ github.job }}")
+            ARTIFACT_NAME="${BASE_NAME}-${JOB_SUFFIX}"
+            echo "🏷️ Artifact name (job scoped): ${ARTIFACT_NAME}"
+            ;;
+          repo)
+            REPO_SUFFIX=$(sanitize_name "${{ github.repository }}")
+            ARTIFACT_NAME="${BASE_NAME}-${REPO_SUFFIX}"
+            echo "🏷️ Artifact name (repo scoped): ${ARTIFACT_NAME}"
+            ;;
+          none)
+            ARTIFACT_NAME="${BASE_NAME}"
+            echo "🏷️ Artifact name (no scope): ${ARTIFACT_NAME}"
+            ;;
+          *)
+            echo "❌ Error: Invalid scope '$SCOPE'. Must be 'run', 'workflow', 'job', 'repo', or 'none'."
+            exit 1
+            ;;
+        esac
 
         echo "artifact-name=${ARTIFACT_NAME}" >> $GITHUB_OUTPUT
-        echo "🏷️ Artifact name: ${ARTIFACT_NAME}"
 
     - name: Compute checksum
       id: compute-checksum
